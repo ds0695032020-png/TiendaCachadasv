@@ -1,14 +1,24 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, ChevronLeft, Check, Clock, LifeBuoy, Mail, Send } from 'lucide-react';
-import { PRODUCTS, Product } from './types';
+import { Menu, ChevronLeft, Check, Clock, LifeBuoy, Mail, Send, LogOut, User } from 'lucide-react';
+import { Product } from './types';
+import { supabase } from './supabase';
+import { useAuth } from './AuthContext';
+import { Login, Register } from './AuthPages';
 
 // --- Components ---
 
 const Navbar = () => {
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -52,6 +62,33 @@ const Navbar = () => {
               >
                 Contacto
               </Link>
+            </li>
+            <li className="pl-4 sm:border-l border-gray-200 flex flex-col sm:flex-row items-center gap-4">
+              {user ? (
+                <>
+                  <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    {user.email?.split('@')[0]}
+                  </span>
+                  <button 
+                    onClick={() => {
+                      handleLogout();
+                      setIsMenuOpen(false);
+                    }}
+                    className="flex items-center gap-1 text-red-600 hover:text-red-700 transition-colors py-2"
+                  >
+                    <LogOut className="w-4 h-4" /> Salir
+                  </button>
+                </>
+              ) : (
+                <Link 
+                  to="/login"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <User className="w-4 h-4" /> Acceder
+                </Link>
+              )}
             </li>
           </ul>
         </nav>
@@ -129,58 +166,88 @@ const Home = () => (
   </motion.div>
 );
 
-const ProductList = () => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }} 
-    animate={{ opacity: 1, y: 0 }} 
-    exit={{ opacity: 0 }}
-    className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
-  >
-    <div className="text-center mb-16">
-      <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Nuestros Productos</h2>
-      <p className="mt-4 text-gray-500 max-w-2xl mx-auto">Explora nuestra colección curada de artículos esenciales con estilo y calidad garantizada.</p>
-    </div>
+const ProductList = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    <div className="grid grid-cols-1 gap-y-12 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
-      {PRODUCTS.map((product) => (
-        <article key={product.id} className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100">
-          <div className="aspect-square w-full overflow-hidden bg-gray-100">
-            <img 
-              src={product.image} 
-              alt={product.name} 
-              className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <div className="flex flex-1 flex-col p-6">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="text-lg font-semibold text-gray-900">{product.name}</h3>
-              <p className="text-lg font-bold text-indigo-600">${product.price.toFixed(2)}</p>
-            </div>
-            <p className="text-sm text-gray-500 line-clamp-2 mb-6">{product.description}</p>
-            <Link 
-              to={`/productos/${product.id}`}
-              className="mt-auto w-full bg-indigo-600 text-white text-center px-4 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors duration-200"
-            >
-              Ver Detalles
-            </Link>
-          </div>
-        </article>
-      ))}
-    </div>
-  </motion.div>
-);
+  useEffect(() => {
+    async function fetchProducts() {
+      const { data, error } = await supabase.from('products').select('*');
+      if (data) {
+        setProducts(data as Product[]);
+      }
+      setLoading(false);
+    }
+    fetchProducts();
+  }, []);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      exit={{ opacity: 0 }}
+      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
+    >
+      <div className="text-center mb-16">
+        <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Nuestros Productos</h2>
+        <p className="mt-4 text-gray-500 max-w-2xl mx-auto">Explora nuestra colección curada de artículos esenciales con estilo y calidad garantizada.</p>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-20 text-gray-500 animate-pulse">Cargando productos de Supabase...</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-y-12 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+          {products.map((product) => (
+            <article key={product.id} className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100">
+              <div className="aspect-square w-full overflow-hidden bg-gray-100">
+                <img 
+                  src={product.image} 
+                  alt={product.name} 
+                  className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="flex flex-1 flex-col p-6">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">{product.name}</h3>
+                  <p className="text-lg font-bold text-indigo-600">${Number(product.price).toFixed(2)}</p>
+                </div>
+                <p className="text-sm text-gray-500 line-clamp-2 mb-6">{product.description}</p>
+                <Link 
+                  to={`/productos/${product.id}`}
+                  className="mt-auto w-full bg-indigo-600 text-white text-center px-4 py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors duration-200"
+                >
+                  Ver Detalles
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const product = PRODUCTS.find(p => p.id === id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    async function fetchProduct() {
+      const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
+      if (data) {
+        setProduct(data as Product);
+      }
+      setLoading(false);
+    }
+    fetchProduct();
+  }, [id]);
 
-  if (!product) return <div className="p-20 text-center">Producto no encontrado</div>;
+  if (loading) return <div className="p-20 text-center animate-pulse text-gray-500">Cargando detalles...</div>;
+  if (!product) return <div className="p-20 text-center">Producto no encontrado en la base de datos</div>;
 
   return (
     <motion.div 
@@ -192,7 +259,7 @@ const ProductDetail = () => {
       <div className="max-w-lg mx-auto">
         <div className="relative aspect-square overflow-hidden bg-gray-50">
           <img 
-            src={product.detailImage || product.image} 
+            src={product.detail_image || product.image} 
             alt={product.name} 
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
@@ -202,7 +269,7 @@ const ProductDetail = () => {
         <div className="px-6 py-8 space-y-8">
           <div className="space-y-2">
             <h2 className="text-3xl font-light tracking-tight text-gray-900">{product.name}</h2>
-            <p className="text-2xl font-medium text-indigo-600">${product.price.toFixed(2)}</p>
+            <p className="text-2xl font-medium text-indigo-600">${Number(product.price).toFixed(2)}</p>
           </div>
 
           <hr className="border-gray-100" />
@@ -210,10 +277,10 @@ const ProductDetail = () => {
           <div className="space-y-4">
             <h3 className="text-xs uppercase tracking-widest font-bold text-gray-400">Descripción</h3>
             <p className="leading-relaxed text-gray-600">
-              {product.fullDescription}
+              {product.full_description}
             </p>
             <ul className="space-y-3 text-gray-600 list-none text-sm">
-              {product.features.map((feature, idx) => (
+              {product.features?.map((feature, idx) => (
                 <li key={idx} className="flex items-center gap-3">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                   {feature}
@@ -240,10 +307,32 @@ const ProductDetail = () => {
 
 const Contact = () => {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setLoading(true);
+    const target = e.target as typeof e.target & {
+      name: { value: string };
+      email: { value: string };
+      message: { value: string };
+    };
+    
+    const { error } = await supabase
+      .from('contact_messages')
+      .insert({
+        name: target.name.value,
+        email: target.email.value,
+        message: target.message.value
+      });
+
+    setLoading(false);
+    if (!error) {
+      setSubmitted(true);
+    } else {
+      alert("Hubo un error al enviar tu mensaje. Por favor intenta de nuevo.");
+      console.error(error);
+    }
   };
 
   return (
@@ -264,7 +353,7 @@ const Contact = () => {
             <Check className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-bold mb-2">¡Mensaje Enviado!</h3>
-          <p>Gracias por contactarnos. Te responderemos lo antes posible.</p>
+          <p>Gracias por contactarnos. Hemos guardado tu mensaje en Supabase de forma segura.</p>
           <button 
             onClick={() => setSubmitted(false)}
             className="mt-6 text-sm font-semibold underline"
@@ -306,10 +395,17 @@ const Contact = () => {
           </div>
           <button 
             type="submit" 
-            className="w-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-xl px-6 py-4 text-sm font-semibold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            disabled={loading}
+            className="w-full bg-gradient-to-br from-indigo-600 to-violet-600 text-white rounded-xl px-6 py-4 text-sm font-semibold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-75 disabled:active:scale-100"
           >
-            <Send className="w-4 h-4" />
-            Enviar Mensaje
+            {loading ? (
+              <span>Enviando...</span>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Enviar Mensaje
+              </>
+            )}
           </button>
         </form>
       )}
@@ -341,6 +437,8 @@ export default function App() {
               <Route path="/productos" element={<ProductList />} />
               <Route path="/productos/:id" element={<ProductDetail />} />
               <Route path="/contacto" element={<Contact />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/registro" element={<Register />} />
             </Routes>
           </AnimatePresence>
         </main>
